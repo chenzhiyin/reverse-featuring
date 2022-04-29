@@ -56,14 +56,14 @@ def append_log_info(data, key, log_info):
 
 def convert_data_logs(data, log_info, names):
     for column in names:
-        value = "NULL" if pd.isna(data[column]) else str(data[column])
-        log_info += ' ' + value
+        value = "" if pd.isna(data[column]) else str(data[column])
+        log_info += '|' + value
 
     return log_info
 
 
 def convert_user_logs(data, info):
-    log_info = f"{info['times']} INFO {info['batch_id']} user_info_service"
+    log_info = f"{info['times']}|INFO|{info['batch_id']}|user_info_service"
     log_info = convert_data_logs(data, log_info, USER_COLUMNS)
 
     append_log_info(info, 'user_log_info_list', log_info)
@@ -72,7 +72,7 @@ def convert_user_logs(data, info):
 
 
 def convert_item_logs(data, info):
-    log_info = f"{info['times']} INFO {info['request_id']} {info['batch_id']} item_info_service"
+    log_info = f"{info['times']}|INFO|{info['request_id']}|{info['batch_id']}|item_info_service"
     log_info = convert_data_logs(data, log_info, ITEM_COLUMNS)
 
     append_log_info(info, 'item_log_info_list', log_info)
@@ -81,7 +81,7 @@ def convert_item_logs(data, info):
 
 
 def covert_behavior_logs(data, info):
-    log_info = f"{info['times']} INFO {info['batch_id']} behavior_info_service"
+    log_info = f"{info['times']}|INFO|{info['batch_id']}|behavior_info_service"
     log_info = convert_data_logs(data, log_info, BEHAVIOR_CLOUMNS)
 
     append_log_info(info, 'behavior_log_info_list', log_info)
@@ -90,7 +90,7 @@ def covert_behavior_logs(data, info):
 
 
 def covert_request_logs(data, info):
-    log_info = f"{info['times']} INFO {info['request_id']} {info['batch_id']} recommend_service {data['clicked']}"
+    log_info = f"{info['times']}|INFO|{info['request_id']}|{info['batch_id']}|recommend_service|{data['clicked']}"
     log_info = convert_data_logs(data, log_info, REQUEST_CLOUMNS)
 
     append_log_info(info, 'request_log_info_list', log_info)

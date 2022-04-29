@@ -3,7 +3,7 @@ import os
 from random import random
 import time
 import uuid
-from sdv.tabular import ctgan
+from sdv.tabular import ctgan, GaussianCopula, TVAE
 
 import pandas as pd
 
@@ -31,12 +31,12 @@ def get_arg_parser():
     parser.add_argument('--fraction',
                         help='sample data ratio',
                         type=float,
-                        default=1)
+                        default=0.001)
 
     parser.add_argument('--chunk_size',
                         help='sample data ratio',
                         type=int,
-                        default=10)
+                        default=100000)
 
     parser.add_argument('--sample',
                         help='sample dataset to train model',
@@ -57,6 +57,7 @@ def generate_sample_file(file):
     sample_file = './data/sample/' + \
         str(file).split('/')[-1].split(".")[-2]+"_sample.csv"
     info = dict()
+    total = 0
 
     reader = pd.read_csv(file, index_col=False, names=COLUMNS,
                          iterator=True, chunksize=args.chunk_size, header=None)
@@ -67,8 +68,14 @@ def generate_sample_file(file):
                 sample_list.append(index % args.chunk_size)
 
         if len(sample_list) > 0:
+            total += len(sample_list)
             chunk.iloc[sample_list].to_csv(
                 sample_file, header=0, index=0, mode='a')
+
+        local_time = time.localtime(time.time())
+        now = time.strftime("%Y-%m-%d %H:%M:%S", local_time)
+        print("-----th%d chunk, time:%s, sample total:%d-----" %
+              ((index+1)/args.chunk_size, now, total))
 
     return
 
@@ -77,7 +84,7 @@ def sample():
     files = os.listdir(args.data_location)
     for file in files:
         if not os.path.isdir(file) and file.endswith(".zip"):
-                generate_sample_file(args.data_location + '/' + file)
+            generate_sample_file(args.data_location + '/' + file)
 
 
 def train():
@@ -85,10 +92,25 @@ def train():
     files = os.listdir(data_path)
     for file_name in files:
         file = data_path + '/' + file_name
-        data = pd.read_csv(file)
-        model = ctgan.CTGAN()
+        data = pd.read_csv(file, index_col=False, names=COLUMNS, header=None)
+        
+        # model = ctgan.CTGAN(
+        #     field_names=COLUMNS,
+        #     embedding_dim=16, 
+        #     generator_dim=(32, 32), 
+        #     discriminator_dim=(32, 32), 
+        #     discriminator_steps=5, 
+        #     batch_size=100, 
+        #     epochs=1, 
+        #     cuda=False)
+        
+        model = GaussianCopula(field_names=COLUMNS)
+        
         model.fit(data)
+        print("finish to fit")
+        
         model.save(file_name.split('.')[-2]+'.pkl')
+        print("finish to save model")
 
     return
 
@@ -97,8 +119,7 @@ def main():
     if args.sample:
         sample()
 
-    sample()
-    # train()
+    train()
 
 
 if __name__ == '__main__':
