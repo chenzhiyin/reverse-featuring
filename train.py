@@ -119,7 +119,8 @@ def main():
     if args.sample:
         sample()
 
-    train()
+    # train()
+    sample()
 
 
 if __name__ == '__main__':

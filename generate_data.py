@@ -25,6 +25,11 @@ def get_arg_parser():
                         help='Full path of train data',
                         required=False,
                         default='./data')
+    
+    parser.add_argument('--chunk_size',
+                        help='sample data ratio',
+                        type=int,
+                        default=1000)
 
     return parser
 
@@ -122,12 +127,17 @@ def generate_log_file(file):
     info = dict()
 
     reader = pd.read_csv(file, index_col=False, names=COLUMNS,
-                         iterator=True, chunksize=10, header=None)
+                         iterator=True, chunksize=args.chunk_size, header=None)
     for chunk in reader:
         for index, row in chunk.iterrows():
             convert_data(index, row, info)
 
         output_log_files(info)
+        
+        local_time = time.localtime(time.time())
+        now = time.strftime("%Y-%m-%d %H:%M:%S", local_time)
+        print("-----th%d chunk, time:%s, total:%d-----" %
+            ((index+1)/args.chunk_size, now, index+1))    
 
     return
 
@@ -135,7 +145,7 @@ def generate_log_file(file):
 def main():
     files = os.listdir(args.data_location)
     for file in files:
-        if not os.path.isdir(file) and file.endswith(".csv"):
+        if not os.path.isdir(file) and file.endswith(".zip"):
             generate_log_file(args.data_location + '/' + file)
 
 
