@@ -105,12 +105,13 @@ def train():
         #     cuda=False)
         
         model = GaussianCopula(field_names=COLUMNS)
-        
         model.fit(data)
         print("finish to fit")
         
         model.save(file_name.split('.')[-2]+'.pkl')
         print("finish to save model")
+        
+        model.sample()
 
     return
 

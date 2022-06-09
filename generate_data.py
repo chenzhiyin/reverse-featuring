@@ -34,15 +34,19 @@ def get_arg_parser():
     return parser
 
 
-def output_log_files(info):
+def output_log_files(info, suffix):
     log_files_map = {
-        'user_log_info_list': "./data/logs/user_service_log",
-        'item_log_info_list': "./data/logs/item_service_log",
-        'behavior_log_info_list': "./data/logs/behavior_service_log",
-        'request_log_info_list': "./data/logs/request_service_log"
+        'user_log_info_list': "./data/logs/user/user_service_log",
+        'item_log_info_list': "./data/logs/item/item_service_log",
+        'behavior_log_info_list': "./data/logs/behavior/behavior_service_log",
+        'request_log_info_list': "./data/logs/request/request_service_log"
     }
 
     for key in log_files_map.keys():
+        size = os.path.getsize(log_files_map[key])
+        if size > 1024*1024*64:
+            os.rename(log_files_map[key], log_files_map[key] + suffix)
+            
         f = open(log_files_map[key], 'a', encoding='utf-8')
         f.writelines(info[key])
         f.close()
@@ -94,7 +98,7 @@ def covert_behavior_logs(data, info):
     return
 
 
-def covert_request_logs(data, info):
+def convert_request_logs(data, info):
     log_info = f"{info['times']}|INFO|{info['request_id']}|{info['batch_id']}|recommend_service|{data['clicked']}"
     log_info = convert_data_logs(data, log_info, REQUEST_CLOUMNS)
 
@@ -118,7 +122,7 @@ def convert_data(index, data, info):
         convert_user_logs(data, info)
 
     convert_item_logs(data, info)
-    covert_request_logs(data, info)
+    convert_request_logs(data, info)
 
     return
 
@@ -132,10 +136,11 @@ def generate_log_file(file):
         for index, row in chunk.iterrows():
             convert_data(index, row, info)
 
-        output_log_files(info)
-        
         local_time = time.localtime(time.time())
-        now = time.strftime("%Y-%m-%d %H:%M:%S", local_time)
+        now = time.strftime("%Y-%m-%d_%H:%M:%S", local_time)
+        
+        output_log_files(info, now)
+        
         print("-----th%d chunk, time:%s, total:%d-----" %
             ((index+1)/args.chunk_size, now, index+1))    
 
@@ -144,6 +149,8 @@ def generate_log_file(file):
 
 def main():
     files = os.listdir(args.data_location)
+    files.sort()
+    
     for file in files:
         if not os.path.isdir(file) and file.endswith(".zip"):
             generate_log_file(args.data_location + '/' + file)
