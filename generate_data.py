@@ -2,6 +2,7 @@ import argparse
 import os
 import time
 import uuid
+import wget
 
 import pandas as pd
 
@@ -22,14 +23,24 @@ COLUMNS = LABEL_COLUMN + USER_COLUMNS + \
 def get_arg_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_location',
-                        help='Full path of train data',
+                        help='Path of initial data',
                         required=False,
                         default='./data')
     
+    parser.add_argument('--result_location',
+                        help='Path of result data',
+                        required=False,
+                        default='./data/logs')
+    
     parser.add_argument('--chunk_size',
-                        help='sample data ratio',
+                        help='chunk size to write logs',
                         type=int,
                         default=1000)
+    
+    parser.add_argument('--rotate_size',
+                        help='file size to rotate logs',
+                        type=int,
+                        default=1024*1024*128)
 
     return parser
 
@@ -43,8 +54,7 @@ def output_log_files(info, suffix):
     }
 
     for key in log_files_map.keys():
-        size = os.path.getsize(log_files_map[key])
-        if size > 1024*1024*64:
+        if os.path.isfile(log_files_map[key]) and os.path.getsize(log_files_map[key]) > args.rotate_size:
             os.rename(log_files_map[key], log_files_map[key] + suffix)
             
         f = open(log_files_map[key], 'a', encoding='utf-8')
@@ -148,6 +158,10 @@ def generate_log_file(file):
 
 
 def main():
+    item_list = ['user', 'item', 'behavior', 'request']
+    for item in item_list:
+        os.makedirs(args.result_location + '/' + item + '/', exist_ok=True)
+                
     files = os.listdir(args.data_location)
     files.sort()
     
