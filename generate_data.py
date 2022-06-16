@@ -1,7 +1,9 @@
 import argparse
+import math
 import os
 import time
 import uuid
+from torch import long
 import wget
 
 import pandas as pd
@@ -18,7 +20,23 @@ REQUEST_CLOUMNS = ['times', 'hours', 'time_type', 'weekdays', 'geohash12']
 LABEL_COLUMN = ['clicked']
 COLUMNS = LABEL_COLUMN + USER_COLUMNS + \
     ITEM_COLUMNS + BEHAVIOR_CLOUMNS + REQUEST_CLOUMNS
+    
+current_size = 0
+is_terminated = False
 
+log_files_map = {
+    'user_log_info_list': "/user/user_service_log",
+    'item_log_info_list': "/item/item_service_log",
+    'behavior_log_info_list': "/behavior/behavior_service_log",
+    'request_log_info_list': "/request/request_service_log"
+}
+
+log_files_suffix_map = {
+    'user_log_info_list': 0,
+    'item_log_info_list': 0,
+    'behavior_log_info_list': 0,
+    'request_log_info_list': 0
+}
 
 def get_arg_parser():
     parser = argparse.ArgumentParser()
@@ -37,6 +55,11 @@ def get_arg_parser():
                         type=int,
                         default=1000)
     
+    parser.add_argument('--total_size',
+                        help='total size of data(GB)',
+                        type=int,
+                        default=100)
+    
     parser.add_argument('--rotate_size',
                         help='file size to rotate logs',
                         type=int,
@@ -45,24 +68,38 @@ def get_arg_parser():
     return parser
 
 
-def output_log_files(info, suffix):
-    log_files_map = {
-        'user_log_info_list': "./data/logs/user/user_service_log",
-        'item_log_info_list': "./data/logs/item/item_service_log",
-        'behavior_log_info_list': "./data/logs/behavior/behavior_service_log",
-        'request_log_info_list': "./data/logs/request/request_service_log"
-    }
-
+def output_log_files(info):
+    global current_size, is_terminated
+    
+    total_file_size = 0
     for key in log_files_map.keys():
-        if os.path.isfile(log_files_map[key]) and os.path.getsize(log_files_map[key]) > args.rotate_size:
-            os.rename(log_files_map[key], log_files_map[key] + suffix)
-            
-        f = open(log_files_map[key], 'a', encoding='utf-8')
+        file = args.result_location + log_files_map[key]
+        if os.path.isfile(file):
+            total_file_size += os.path.getsize(file)/1024/1024
+    
+    index = int(math.floor(current_size/1024))
+    next = int(math.floor((current_size + total_file_size)/1024))
+    is_terminated = (next >= args.total_size)
+    
+    is_rotate = (next > index)
+    
+    for key in log_files_map.keys():
+        file = args.result_location + log_files_map[key]
+        
+        f = open(file, 'a', encoding='utf-8')
         f.writelines(info[key])
         f.close()
-
         info[key] = list()
 
+        if os.path.getsize(file) > args.rotate_size or is_rotate or is_terminated:
+            current_size += os.path.getsize(file)/1024/1024
+            os.rename(file, "%s_%d_%d" % (file, index, log_files_suffix_map[key]))
+            log_files_suffix_map[key] += 1
+
+    if is_rotate:
+        for key in log_files_suffix_map.keys():
+            log_files_suffix_map[key] = 0
+            
     return
 
 
@@ -145,15 +182,18 @@ def generate_log_file(file):
     for chunk in reader:
         for index, row in chunk.iterrows():
             convert_data(index, row, info)
-
+        
+        output_log_files(info)
+        if is_terminated:
+            break
+        
         local_time = time.localtime(time.time())
         now = time.strftime("%Y-%m-%d_%H:%M:%S", local_time)
-        
-        output_log_files(info, now)
-        
-        print("-----th%d chunk, time:%s, total:%d-----" %
-            ((index+1)/args.chunk_size, now, index+1))    
+        if (index + 1) / args.chunk_size % 100 == 1:
+            print("-----th%d chunk, time:%s, total:%d-----" %
+                ((index+1)/args.chunk_size, now, index+1))    
 
+    print("finish file: %s" % file)
     return
 
 
@@ -161,13 +201,33 @@ def main():
     item_list = ['user', 'item', 'behavior', 'request']
     for item in item_list:
         os.makedirs(args.result_location + '/' + item + '/', exist_ok=True)
+        
+    for day in range(1, 9):
+        if is_terminated:
+            break
+        
+        date = "2022040" + str(day)
+        for index in range (10):
+            file = args.data_location + '/eleme_data_%s_%d.csv' % (date, index)
+            
+            if not os.path.isfile(file):
+                print("download file: %s" % file)
+                url = "http://tfsmoke1.cn-hangzhou.oss.aliyun-inc.com/eleme_data/%s/eleme_data_%s_%d.csv" % (date, date, index)
+                wget.download(url, out=args.data_location)
+            
+            generate_log_file(file)
+            print("generate data size: %s M" % str(current_size))
+            
+            if is_terminated:
+                break
+            
                 
-    files = os.listdir(args.data_location)
-    files.sort()
+    # files = os.listdir(args.data_location)
+    # files.sort()
     
-    for file in files:
-        if not os.path.isdir(file) and file.endswith(".zip"):
-            generate_log_file(args.data_location + '/' + file)
+    # for file in files:
+    #     if not os.path.isdir(file) and file.endswith(".zip"):
+    #         generate_log_file(args.data_location + '/' + file)
 
 
 if __name__ == '__main__':
